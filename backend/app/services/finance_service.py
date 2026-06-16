@@ -16,8 +16,11 @@ def profit_report() -> list[dict]:
                 "spec_name": enriched["name"],
                 "sale_price": enriched["sale_price"],
                 "cost": round(enriched["ingredient_cost"] + enriched["packaging_cost"], 2),
+                "ingredient_cost": enriched["ingredient_cost"],
+                "packaging_cost": enriched["packaging_cost"],
                 "gross_profit": enriched["gross_profit"],
                 "gross_margin": enriched["gross_margin"],
+                "recipe_items": enriched["recipe_items"],
             }
         )
     return lines

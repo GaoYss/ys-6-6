@@ -126,6 +126,25 @@ suppliers: dict[str, dict] = {
     },
 }
 
+spec_recipes: dict[str, list[dict]] = {
+    "spec_beef_small": [
+        {"ingredient_id": "ing_beef", "qty": 0.215},
+        {"ingredient_id": "ing_packaging", "qty": 1},
+    ],
+    "spec_beef_large": [
+        {"ingredient_id": "ing_beef", "qty": 0.348},
+        {"ingredient_id": "ing_packaging", "qty": 1},
+    ],
+    "spec_tripe_regular": [
+        {"ingredient_id": "ing_tripe", "qty": 0.222},
+        {"ingredient_id": "ing_packaging", "qty": 1},
+    ],
+    "spec_mushroom_regular": [
+        {"ingredient_id": "ing_mushroom", "qty": 0.26},
+        {"ingredient_id": "ing_packaging", "qty": 1},
+    ],
+}
+
 purchase_orders: dict[str, dict] = {
     "po_tripe": {
         "id": "po_tripe",

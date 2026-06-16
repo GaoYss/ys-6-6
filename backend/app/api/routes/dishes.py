@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Response, status
 
-from app.schemas.dishes import Dish, DishCreate, DishUpdate, Specification, SpecificationCreate, SpecificationUpdate
+from app.schemas.dishes import Dish, DishCreate, DishUpdate, RecipeItemCreate, Specification, SpecificationCreate, SpecificationUpdate
 from app.services import catalog_service
 
 router = APIRouter(tags=["dishes"])
@@ -47,3 +47,12 @@ def remove_specification(spec_id: str) -> Response:
     catalog_service.delete_specification(spec_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
+
+@router.post("/specifications/{spec_id}/recipe-items", response_model=Specification)
+def post_recipe_item(spec_id: str, payload: RecipeItemCreate) -> dict:
+    return catalog_service.add_recipe_item(spec_id, payload)
+
+
+@router.delete("/specifications/{spec_id}/recipe-items/{ingredient_id}", response_model=Specification)
+def remove_recipe_item(spec_id: str, ingredient_id: str) -> dict:
+    return catalog_service.remove_recipe_item(spec_id, ingredient_id)

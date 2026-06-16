@@ -1,5 +1,7 @@
 from pydantic import BaseModel
 
+from app.schemas.dishes import RecipeItem
+
 
 class ProfitLine(BaseModel):
     dish_id: str
@@ -7,8 +9,11 @@ class ProfitLine(BaseModel):
     spec_name: str
     sale_price: float
     cost: float
+    ingredient_cost: float
+    packaging_cost: float
     gross_profit: float
     gross_margin: float
+    recipe_items: list[RecipeItem] = []
 
 
 class FinanceSummary(BaseModel):
@@ -17,4 +22,3 @@ class FinanceSummary(BaseModel):
     pending_purchase_orders: int
     average_margin: float
     estimated_inventory_value: float
-

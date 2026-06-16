@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Plus, Save, Trash2 } from 'lucide-react'
+import { Plus, Save, Trash2, X } from 'lucide-react'
 import { api } from '../api/client.js'
 import { EmptyState } from '../components/EmptyState.jsx'
 
@@ -8,12 +8,13 @@ const initialForm = {
   name: '标准份',
   serving_size: '',
   sale_price: '',
-  ingredient_cost: '',
   packaging_cost: '',
 }
 
-export function Specifications({ dishes, specifications, refresh }) {
+export function Specifications({ dishes, specifications, ingredients, refresh }) {
   const [form, setForm] = useState(initialForm)
+  const [recipeForm, setRecipeForm] = useState({})
+  const [expandedSpec, setExpandedSpec] = useState(null)
 
   const updateField = (field, value) => setForm((current) => ({ ...current, [field]: value }))
 
@@ -22,8 +23,8 @@ export function Specifications({ dishes, specifications, refresh }) {
     await api.createSpecification({
       ...form,
       sale_price: Number(form.sale_price),
-      ingredient_cost: Number(form.ingredient_cost),
       packaging_cost: Number(form.packaging_cost),
+      recipe_items: [],
     })
     setForm(initialForm)
     refresh()
@@ -34,34 +35,145 @@ export function Specifications({ dishes, specifications, refresh }) {
     refresh()
   }
 
+  const addIngredient = async (specId) => {
+    const rf = recipeForm[specId]
+    if (!rf?.ingredient_id || !rf?.qty) return
+    await api.addRecipeItem(specId, {
+      ingredient_id: rf.ingredient_id,
+      qty: Number(rf.qty),
+    })
+    setRecipeForm((current) => ({ ...current, [specId]: {} }))
+    refresh()
+  }
+
+  const removeIngredient = async (specId, ingredientId) => {
+    await api.removeRecipeItem(specId, ingredientId)
+    refresh()
+  }
+
+  const updateRecipeForm = (specId, field, value) => {
+    setRecipeForm((current) => ({
+      ...current,
+      [specId]: { ...current[specId], [field]: value },
+    }))
+  }
+
   const dishName = (id) => dishes.find((dish) => dish.id === id)?.name || '未知菜品'
+
+  const usedIngredientIds = (spec) =>
+    new Set((spec.recipe_items || []).map((ri) => ri.ingredient_id))
 
   return (
     <div className="two-column">
       <section className="panel">
         <div className="section-title">
-          <h2>规格与价格</h2>
+          <h2>规格与配方</h2>
           <span>{specifications.length} 个规格</span>
         </div>
         {specifications.length === 0 ? (
           <EmptyState text="还没有规格" />
         ) : (
-          <div className="card-grid">
+          <div className="spec-recipe-list">
             {specifications.map((spec) => (
-              <article className="spec-card" key={spec.id}>
-                <div>
-                  <span>{dishName(spec.dish_id)}</span>
-                  <h3>{spec.name}</h3>
+              <article className="spec-recipe-card" key={spec.id}>
+                <div className="spec-recipe-header" onClick={() => setExpandedSpec(expandedSpec === spec.id ? null : spec.id)}>
+                  <div>
+                    <span className="spec-dish-tag">{dishName(spec.dish_id)}</span>
+                    <h3>{spec.name}</h3>
+                  </div>
+                  <div className="spec-metrics">
+                    <div className="spec-metric">
+                      <small>售价</small>
+                      <b>¥{spec.sale_price}</b>
+                    </div>
+                    <div className="spec-metric">
+                      <small>原料成本</small>
+                      <b>¥{spec.ingredient_cost.toFixed(1)}</b>
+                    </div>
+                    <div className="spec-metric">
+                      <small>总成本</small>
+                      <b>¥{(spec.ingredient_cost + spec.packaging_cost).toFixed(1)}</b>
+                    </div>
+                    <div className="spec-metric highlight">
+                      <small>毛利率</small>
+                      <b>{Math.round(spec.gross_margin * 100)}%</b>
+                    </div>
+                  </div>
+                  <button className="danger icon-only" onClick={(e) => { e.stopPropagation(); remove(spec) }} type="button" title="删除规格">
+                    <Trash2 size={15} />
+                  </button>
                 </div>
-                <dl>
-                  <div><dt>出品量</dt><dd>{spec.serving_size}</dd></div>
-                  <div><dt>售价</dt><dd>¥{spec.sale_price}</dd></div>
-                  <div><dt>成本</dt><dd>¥{(spec.ingredient_cost + spec.packaging_cost).toFixed(1)}</dd></div>
-                  <div><dt>毛利率</dt><dd>{Math.round(spec.gross_margin * 100)}%</dd></div>
-                </dl>
-                <button className="danger icon-only" onClick={() => remove(spec)} type="button" title="删除规格">
-                  <Trash2 size={15} />
-                </button>
+
+                {expandedSpec === spec.id && (
+                  <div className="spec-recipe-body">
+                    <div className="recipe-items-section">
+                      <h4>配方原料</h4>
+                      {(spec.recipe_items || []).length === 0 ? (
+                        <p className="recipe-empty">尚未绑定原料，请在下方添加</p>
+                      ) : (
+                        <table className="recipe-table">
+                          <thead>
+                            <tr>
+                              <th>原料</th>
+                              <th>用量</th>
+                              <th>单价</th>
+                              <th>小计</th>
+                              <th></th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {(spec.recipe_items || []).map((ri) => (
+                              <tr key={ri.ingredient_id}>
+                                <td><strong>{ri.ingredient_name}</strong></td>
+                                <td>{ri.qty}{ri.unit}</td>
+                                <td>¥{ri.unit_price}/{ri.unit}</td>
+                                <td>¥{ri.subtotal}</td>
+                                <td>
+                                  <button className="danger icon-only" type="button" onClick={() => removeIngredient(spec.id, ri.ingredient_id)} title="移除原料">
+                                    <X size={14} />
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                          <tfoot>
+                            <tr>
+                              <td colSpan="3"><strong>原料成本合计</strong></td>
+                              <td><strong>¥{spec.ingredient_cost.toFixed(2)}</strong></td>
+                              <td></td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                      )}
+
+                      <div className="recipe-add-row">
+                        <select
+                          value={recipeForm[spec.id]?.ingredient_id || ''}
+                          onChange={(e) => updateRecipeForm(spec.id, 'ingredient_id', e.target.value)}
+                        >
+                          <option value="">选择原料</option>
+                          {ingredients
+                            .filter((ing) => !usedIngredientIds(spec).has(ing.id))
+                            .map((ing) => (
+                              <option key={ing.id} value={ing.id}>{ing.name} (¥{ing.avg_price}/{ing.unit})</option>
+                            ))}
+                        </select>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          placeholder="用量"
+                          value={recipeForm[spec.id]?.qty || ''}
+                          onChange={(e) => updateRecipeForm(spec.id, 'qty', e.target.value)}
+                        />
+                        <button className="primary compact" type="button" onClick={() => addIngredient(spec.id)}>
+                          <Plus size={14} />
+                          <span>添加</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </article>
             ))}
           </div>
@@ -97,14 +209,11 @@ export function Specifications({ dishes, specifications, refresh }) {
               <input type="number" min="0" step="0.1" value={form.sale_price} onChange={(event) => updateField('sale_price', event.target.value)} required />
             </label>
             <label>
-              原料成本
-              <input type="number" min="0" step="0.1" value={form.ingredient_cost} onChange={(event) => updateField('ingredient_cost', event.target.value)} required />
+              包装/损耗成本
+              <input type="number" min="0" step="0.1" value={form.packaging_cost} onChange={(event) => updateField('packaging_cost', event.target.value)} required />
             </label>
           </div>
-          <label>
-            包装/损耗成本
-            <input type="number" min="0" step="0.1" value={form.packaging_cost} onChange={(event) => updateField('packaging_cost', event.target.value)} required />
-          </label>
+          <p className="form-hint">原料配方请在创建后展开规格卡片添加</p>
           <button className="primary" type="submit">
             <Save size={16} />
             <span>保存规格</span>
@@ -114,4 +223,3 @@ export function Specifications({ dishes, specifications, refresh }) {
     </div>
   )
 }
-
