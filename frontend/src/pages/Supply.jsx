@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { CheckCircle2, PackagePlus, Pencil, X, Save, Loader2 } from 'lucide-react'
+import { CheckCircle2, PackagePlus, Pencil, X, Save, Loader2, AlertCircle } from 'lucide-react'
 import { api } from '../api/client.js'
 import { StatusBadge } from '../components/StatusBadge.jsx'
 
@@ -17,6 +17,9 @@ export function Supply({ ingredients, suppliers, purchaseOrders, refresh }) {
   const [savingPrice, setSavingPrice] = useState(false)
   const [priceError, setPriceError] = useState('')
   const [receiveLoading, setReceiveLoading] = useState(null)
+  const [receiveErrors, setReceiveErrors] = useState({})
+  const [submitting, setSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState('')
 
   const selectedIngredient = useMemo(
     () => ingredients.find((item) => item.id === form.ingredient_id),
@@ -27,25 +30,36 @@ export function Supply({ ingredients, suppliers, purchaseOrders, refresh }) {
 
   const submit = async (event) => {
     event.preventDefault()
-    await api.createPurchaseOrder({
-      supplier_id: form.supplier_id,
-      expected_arrival: form.expected_arrival,
-      remark: form.remark,
-      items: [{
-        ingredient_id: form.ingredient_id,
-        qty: Number(form.qty),
-        unit_price: Number(form.unit_price),
-      }],
-    })
-    setForm((current) => ({ ...current, ingredient_id: '', qty: '', unit_price: '', remark: '' }))
-    refresh()
+    setSubmitting(true)
+    setSubmitError('')
+    try {
+      await api.createPurchaseOrder({
+        supplier_id: form.supplier_id,
+        expected_arrival: form.expected_arrival,
+        remark: form.remark,
+        items: [{
+          ingredient_id: form.ingredient_id,
+          qty: Number(form.qty),
+          unit_price: Number(form.unit_price),
+        }],
+      })
+      setForm((current) => ({ ...current, ingredient_id: '', qty: '', unit_price: '', remark: '' }))
+      refresh()
+    } catch (error) {
+      setSubmitError(error.message || '提交失败，请稍后重试')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   const receive = async (order) => {
     setReceiveLoading(order.id)
+    setReceiveErrors((current) => ({ ...current, [order.id]: '' }))
     try {
       await api.updatePurchaseStatus(order.id, 'received')
       refresh()
+    } catch (error) {
+      setReceiveErrors((current) => ({ ...current, [order.id]: error.message || '入库失败' }))
     } finally {
       setReceiveLoading(null)
     }
@@ -188,6 +202,12 @@ export function Supply({ ingredients, suppliers, purchaseOrders, refresh }) {
                   <strong>{order.id}</strong>
                   <span>{suppliers.find((item) => item.id === order.supplier_id)?.name} · 到货 {order.expected_arrival}</span>
                   <small>{order.remark || '无备注'}</small>
+                  {receiveErrors[order.id] && (
+                    <p className="order-error">
+                      <AlertCircle size={13} />
+                      <span>{receiveErrors[order.id]}</span>
+                    </p>
+                  )}
                 </div>
                 <div className="order-side">
                   <b>¥{order.total_amount}</b>
@@ -214,9 +234,15 @@ export function Supply({ ingredients, suppliers, purchaseOrders, refresh }) {
             <PackagePlus size={18} />
           </div>
           <form className="form" onSubmit={submit}>
+            {submitError && (
+              <p className="form-error">
+                <AlertCircle size={14} />
+                <span>{submitError}</span>
+              </p>
+            )}
             <label>
               供应商
-              <select value={form.supplier_id} onChange={(event) => updateField('supplier_id', event.target.value)} required>
+              <select value={form.supplier_id} onChange={(event) => updateField('supplier_id', event.target.value)} required disabled={submitting}>
                 <option value="">选择供应商</option>
                 {suppliers.map((supplier) => (
                   <option key={supplier.id} value={supplier.id}>{supplier.name}</option>
@@ -225,7 +251,7 @@ export function Supply({ ingredients, suppliers, purchaseOrders, refresh }) {
             </label>
             <label>
               原料
-              <select value={form.ingredient_id} onChange={(event) => updateField('ingredient_id', event.target.value)} required>
+              <select value={form.ingredient_id} onChange={(event) => updateField('ingredient_id', event.target.value)} required disabled={submitting}>
                 <option value="">选择原料</option>
                 {ingredients.map((item) => (
                   <option key={item.id} value={item.id}>{item.name}</option>
@@ -235,24 +261,24 @@ export function Supply({ ingredients, suppliers, purchaseOrders, refresh }) {
             <div className="form-grid">
               <label>
                 数量{selectedIngredient ? `(${selectedIngredient.unit})` : ''}
-                <input type="number" min="0" step="0.1" value={form.qty} onChange={(event) => updateField('qty', event.target.value)} required />
+                <input type="number" min="0" step="0.1" value={form.qty} onChange={(event) => updateField('qty', event.target.value)} required disabled={submitting} />
               </label>
               <label>
                 单价
-                <input type="number" min="0" step="0.1" value={form.unit_price} onChange={(event) => updateField('unit_price', event.target.value)} required />
+                <input type="number" min="0" step="0.1" value={form.unit_price} onChange={(event) => updateField('unit_price', event.target.value)} required disabled={submitting} />
               </label>
             </div>
             <label>
               预计到货
-              <input type="date" value={form.expected_arrival} onChange={(event) => updateField('expected_arrival', event.target.value)} required />
+              <input type="date" value={form.expected_arrival} onChange={(event) => updateField('expected_arrival', event.target.value)} required disabled={submitting} />
             </label>
             <label>
               备注
-              <textarea rows="3" value={form.remark} onChange={(event) => updateField('remark', event.target.value)} />
+              <textarea rows="3" value={form.remark} onChange={(event) => updateField('remark', event.target.value)} disabled={submitting} />
             </label>
-            <button className="primary" type="submit">
-              <PackagePlus size={16} />
-              <span>提交采购</span>
+            <button className="primary" type="submit" disabled={submitting}>
+              {submitting ? <Loader2 size={16} className="spin" /> : <PackagePlus size={16} />}
+              <span>{submitting ? '提交中...' : '提交采购'}</span>
             </button>
           </form>
         </section>
