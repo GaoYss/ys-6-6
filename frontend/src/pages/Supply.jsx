@@ -212,16 +212,21 @@ export function Supply({ ingredients, suppliers, purchaseOrders, refresh }) {
                 <div className="order-side">
                   <b>¥{order.total_amount}</b>
                   <StatusBadge value={order.status} />
-                  {order.status !== 'received' && (
-                    <button
-                      type="button"
-                      onClick={() => receive(order)}
-                      disabled={receiveLoading === order.id}
-                    >
-                      {receiveLoading === order.id ? <Loader2 size={15} className="spin" /> : <CheckCircle2 size={15} />}
-                      {receiveLoading === order.id ? '入库中' : '入库'}
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => receive(order)}
+                    disabled={order.status === 'received' || receiveLoading === order.id}
+                    title={order.status === 'received' ? '已入库，不可重复操作' : '确认入库'}
+                  >
+                    {receiveLoading === order.id ? (
+                      <Loader2 size={15} className="spin" />
+                    ) : order.status === 'received' ? (
+                      <CheckCircle2 size={15} />
+                    ) : (
+                      <CheckCircle2 size={15} />
+                    )}
+                    {receiveLoading === order.id ? '入库中' : order.status === 'received' ? '已入库' : '入库'}
+                  </button>
                 </div>
               </div>
             ))}
