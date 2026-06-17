@@ -42,3 +42,7 @@ class PurchaseOrder(PurchaseOrderCreate):
 class PurchaseStatusUpdate(BaseModel):
     status: str = Field(pattern="^(draft|ordered|received|cancelled)$")
 
+
+class IngredientPriceUpdate(BaseModel):
+    avg_price: float = Field(gt=0)
+

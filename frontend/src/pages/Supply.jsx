@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { CheckCircle2, PackagePlus } from 'lucide-react'
+import { CheckCircle2, PackagePlus, Pencil, X, Save, Loader2 } from 'lucide-react'
 import { api } from '../api/client.js'
 import { StatusBadge } from '../components/StatusBadge.jsx'
 
@@ -12,6 +12,11 @@ export function Supply({ ingredients, suppliers, purchaseOrders, refresh }) {
     expected_arrival: new Date(Date.now() + 86400000).toISOString().slice(0, 10),
     remark: '',
   })
+  const [editingPrice, setEditingPrice] = useState(null)
+  const [priceValue, setPriceValue] = useState('')
+  const [savingPrice, setSavingPrice] = useState(false)
+  const [priceError, setPriceError] = useState('')
+  const [receiveLoading, setReceiveLoading] = useState(null)
 
   const selectedIngredient = useMemo(
     () => ingredients.find((item) => item.id === form.ingredient_id),
@@ -37,8 +42,45 @@ export function Supply({ ingredients, suppliers, purchaseOrders, refresh }) {
   }
 
   const receive = async (order) => {
-    await api.updatePurchaseStatus(order.id, 'received')
-    refresh()
+    setReceiveLoading(order.id)
+    try {
+      await api.updatePurchaseStatus(order.id, 'received')
+      refresh()
+    } finally {
+      setReceiveLoading(null)
+    }
+  }
+
+  const startEditPrice = (item) => {
+    setEditingPrice(item.id)
+    setPriceValue(String(item.avg_price))
+    setPriceError('')
+  }
+
+  const cancelEditPrice = () => {
+    setEditingPrice(null)
+    setPriceValue('')
+    setPriceError('')
+  }
+
+  const savePrice = async (ingredientId) => {
+    const price = Number(priceValue)
+    if (!price || price <= 0) {
+      setPriceError('请输入大于 0 的价格')
+      return
+    }
+    setSavingPrice(true)
+    setPriceError('')
+    try {
+      await api.updateIngredientPrice(ingredientId, price)
+      setEditingPrice(null)
+      setPriceValue('')
+      refresh()
+    } catch (error) {
+      setPriceError(error.message || '保存失败')
+    } finally {
+      setSavingPrice(false)
+    }
   }
 
   return (
@@ -48,6 +90,7 @@ export function Supply({ ingredients, suppliers, purchaseOrders, refresh }) {
           <h2>原料库存</h2>
           <span>{ingredients.length} 项</span>
         </div>
+        <p className="table-hint">点击均价列可直接修改价格，修改后相关规格成本与利润报表自动刷新</p>
         <div className="table-wrap">
           <table>
             <thead>
@@ -57,6 +100,7 @@ export function Supply({ ingredients, suppliers, purchaseOrders, refresh }) {
                 <th>库存</th>
                 <th>安全库存</th>
                 <th>均价</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
@@ -66,7 +110,64 @@ export function Supply({ ingredients, suppliers, purchaseOrders, refresh }) {
                   <td>{item.category}</td>
                   <td>{item.stock_qty}{item.unit}</td>
                   <td>{item.safety_stock}{item.unit}</td>
-                  <td>¥{item.avg_price}</td>
+                  <td>
+                    {editingPrice === item.id ? (
+                      <div className="price-edit-row">
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.1"
+                          value={priceValue}
+                          onChange={(e) => setPriceValue(e.target.value)}
+                          autoFocus
+                          className="price-input"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') savePrice(item.id)
+                            if (e.key === 'Escape') cancelEditPrice()
+                          }}
+                        />
+                        <span className="price-unit">¥/{item.unit}</span>
+                      </div>
+                    ) : (
+                      <span className="price-display">¥{item.avg_price}</span>
+                    )}
+                    {editingPrice === item.id && priceError && (
+                      <p className="price-error">{priceError}</p>
+                    )}
+                  </td>
+                  <td className="row-actions">
+                    {editingPrice === item.id ? (
+                      <>
+                        <button
+                          className="primary compact-icon"
+                          type="button"
+                          onClick={() => savePrice(item.id)}
+                          disabled={savingPrice}
+                          title="保存"
+                        >
+                          {savingPrice ? <Loader2 size={14} className="spin" /> : <Save size={14} />}
+                        </button>
+                        <button
+                          className="icon-only"
+                          type="button"
+                          onClick={cancelEditPrice}
+                          disabled={savingPrice}
+                          title="取消"
+                        >
+                          <X size={14} />
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        className="icon-only"
+                        type="button"
+                        onClick={() => startEditPrice(item)}
+                        title="修改价格"
+                      >
+                        <Pencil size={14} />
+                      </button>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -92,9 +193,13 @@ export function Supply({ ingredients, suppliers, purchaseOrders, refresh }) {
                   <b>¥{order.total_amount}</b>
                   <StatusBadge value={order.status} />
                   {order.status !== 'received' && (
-                    <button type="button" onClick={() => receive(order)}>
-                      <CheckCircle2 size={15} />
-                      入库
+                    <button
+                      type="button"
+                      onClick={() => receive(order)}
+                      disabled={receiveLoading === order.id}
+                    >
+                      {receiveLoading === order.id ? <Loader2 size={15} className="spin" /> : <CheckCircle2 size={15} />}
+                      {receiveLoading === order.id ? '入库中' : '入库'}
                     </button>
                   )}
                 </div>
@@ -155,4 +260,3 @@ export function Supply({ ingredients, suppliers, purchaseOrders, refresh }) {
     </div>
   )
 }
-

@@ -1,7 +1,7 @@
 from fastapi import HTTPException, status
 
 from app.data import store
-from app.schemas.supply import PurchaseOrderCreate
+from app.schemas.supply import IngredientPriceUpdate, PurchaseOrderCreate
 
 
 def list_ingredients() -> list[dict]:
@@ -46,7 +46,21 @@ def update_purchase_status(order_id: str, status_value: str) -> dict:
     if status_value == "received" and previous_status != "received":
         for item in order["items"]:
             ingredient = store.ingredients[item["ingredient_id"]]
-            ingredient["stock_qty"] = round(ingredient["stock_qty"] + item["qty"], 2)
-            ingredient["avg_price"] = round(item["unit_price"], 2)
+            old_qty = ingredient["stock_qty"]
+            old_price = ingredient["avg_price"]
+            new_qty = item["qty"]
+            new_price = item["unit_price"]
+            total_qty = old_qty + new_qty
+            weighted_avg = round((old_qty * old_price + new_qty * new_price) / total_qty, 2) if total_qty > 0 else new_price
+            ingredient["stock_qty"] = round(total_qty, 2)
+            ingredient["avg_price"] = weighted_avg
     return order
+
+
+def update_ingredient_price(ingredient_id: str, payload: IngredientPriceUpdate) -> dict:
+    ingredient = store.ingredients.get(ingredient_id)
+    if not ingredient:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ingredient not found")
+    ingredient["avg_price"] = round(payload.avg_price, 2)
+    return ingredient
 

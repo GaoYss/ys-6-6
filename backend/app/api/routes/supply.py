@@ -1,6 +1,6 @@
 from fastapi import APIRouter, status
 
-from app.schemas.supply import Ingredient, PurchaseOrder, PurchaseOrderCreate, PurchaseStatusUpdate, Supplier
+from app.schemas.supply import Ingredient, IngredientPriceUpdate, PurchaseOrder, PurchaseOrderCreate, PurchaseStatusUpdate, Supplier
 from app.services import supply_service
 
 router = APIRouter(tags=["supply"])
@@ -9,6 +9,11 @@ router = APIRouter(tags=["supply"])
 @router.get("/ingredients", response_model=list[Ingredient])
 def get_ingredients() -> list[dict]:
     return supply_service.list_ingredients()
+
+
+@router.patch("/ingredients/{ingredient_id}/price", response_model=Ingredient)
+def patch_ingredient_price(ingredient_id: str, payload: IngredientPriceUpdate) -> dict:
+    return supply_service.update_ingredient_price(ingredient_id, payload)
 
 
 @router.get("/suppliers", response_model=list[Supplier])

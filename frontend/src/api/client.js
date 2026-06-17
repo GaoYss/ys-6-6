@@ -33,6 +33,10 @@ export const api = {
   addRecipeItem: (specId, payload) => request(`/specifications/${specId}/recipe-items`, { method: 'POST', body: JSON.stringify(payload) }),
   removeRecipeItem: (specId, ingredientId) => request(`/specifications/${specId}/recipe-items/${ingredientId}`, { method: 'DELETE' }),
   ingredients: () => request('/ingredients'),
+  updateIngredientPrice: (id, avg_price) => request(`/ingredients/${id}/price`, {
+    method: 'PATCH',
+    body: JSON.stringify({ avg_price }),
+  }),
   suppliers: () => request('/suppliers'),
   purchaseOrders: () => request('/purchase-orders'),
   createPurchaseOrder: (payload) => request('/purchase-orders', { method: 'POST', body: JSON.stringify(payload) }),
